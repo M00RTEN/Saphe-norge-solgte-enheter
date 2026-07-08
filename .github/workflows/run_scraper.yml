@@ -1,0 +1,32 @@
+name: Kjoer Thansen Scraper
+
+on:
+  schedule:
+    - cron: '0 */6 * * *' # Kjører hver 6. time
+  workflow_dispatch: # Gjør at du kan trykke på en knapp for å starte den manuelt
+
+jobs:
+  run-scraper:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Sjekk ut kode
+      uses: actions/checkout@v4
+
+    - name: Sett opp Python
+      uses: actions/setup-python@v5
+      with:
+        python-python: '3.11'
+
+    - name: Installer pakker
+      run: pip install requests beautifulsoup4
+
+    - name: Kjoer skript
+      run: python scraper.py
+
+    - name: Lagre og push endringer
+      run: |
+        git config --global user.name "GitHub Action"
+        git config --global user.email "action@github.com"
+        git add data.json
+        git commit -m "Automatisk lageroppdatering" || exit 0
+        git push
