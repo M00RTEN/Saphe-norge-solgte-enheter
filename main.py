@@ -45,21 +45,20 @@ def hent_lager():
         print(f"Skrapefeil: {e}", flush=True)
         return None
 
-# --- NY DEL START ---
-forrige_lager = None # Denne må stå her for å huske forrige måling
-# --- NY DEL SLUTT ---
+# Variabel for å huske forrige måling
+forrige_lager = None
 
 # Hovedløkke
 while True:
     nytt_lager = hent_lager()
     if nytt_lager is not None:
-        # --- NY LOGIKK FOR SALG ---
+        # Beregn salg ved å sammenligne med forrige måling
         salg = 0
         if forrige_lager is not None and nytt_lager < forrige_lager:
             salg = forrige_lager - nytt_lager
         
         try:
-            # Vi sender nå variabelen 'salg' til databasen
+            # Send lager og salg til Supabase
             supabase.table('saphe_logg').insert({
                 "lager": nytt_lager, 
                 "solgt_siden_sist": salg
@@ -67,10 +66,10 @@ while True:
             
             print(f"Suksess! Lagret {nytt_lager} stk. (Solgt siden sist: {salg})", flush=True)
             
-            # Oppdater forrige_lager til det vi nettopp hentet, klar for neste runde
+            # Oppdater hukommelsen
             forrige_lager = nytt_lager
             
         except Exception as e:
             print(f"Supabase feil: {e}", flush=True)
     
-    time.sleep(120)
+    time.sleep(120) # Venter 2 minutter
