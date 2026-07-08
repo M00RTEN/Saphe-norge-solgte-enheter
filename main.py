@@ -19,7 +19,6 @@ Thread(target=run_dummy_server, daemon=True).start()
 supabase = create_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_KEY"))
 
 API_URL = "https://www.thansen.no/ajax/functionGetInstockStatus.asp?pn=1545773"
-# Ny header for å virke mer som en ekte nettleser
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
 }
@@ -30,18 +29,34 @@ def hent_lager():
         if res.status_code != 200:
             print(f"API-feil: {res.status_code}", flush=True)
             return None
+        
         data = res.json()
-        return sum(int(b.get("antal", 0)) for b in data.get("filialstatus", []))
+        total_lager = 0
+        
+        # Henter ut listen fra JSON-svaret
+        for b in data.get("filialstatus", []):
+            amount_str = str(b.get("amount", "0"))
+            
+            # Fjerner '+' fra '+25' for å kunne konvertere til tall
+            clean_amount = amount_str.replace("+", "")
+            
+            if clean_amount.isdigit():
+                total_lager += int(clean_amount)
+                
+        return total_lager
     except Exception as e:
         print(f"Skrapefeil: {e}", flush=True)
         return None
 
+# Hovedløkke
 while True:
     nytt_lager = hent_lager()
     if nytt_lager is not None:
         try:
+            # Sender data til Supabase
             supabase.table('saphe_logg').insert({"lager": nytt_lager, "solgt_siden_sist": 0}).execute()
-            print(f"Suksess! Lagret {nytt_lager}", flush=True)
+            print(f"Suksess! Lagret {nytt_lager} stk.", flush=True)
         except Exception as e:
             print(f"Supabase feil: {e}", flush=True)
-    time.sleep(120) # Økt til 2 minutter for å unngå blokkering
+    
+    time.sleep(120) # Venter 2 minutter før neste sjekk
