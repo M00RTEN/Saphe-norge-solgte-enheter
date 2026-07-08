@@ -33,11 +33,8 @@ def hent_lager():
         data = res.json()
         total_lager = 0
         
-        # Henter ut listen fra JSON-svaret
         for b in data.get("filialstatus", []):
             amount_str = str(b.get("amount", "0"))
-            
-            # Fjerner '+' fra '+25' for å kunne konvertere til tall
             clean_amount = amount_str.replace("+", "")
             
             if clean_amount.isdigit():
@@ -48,15 +45,32 @@ def hent_lager():
         print(f"Skrapefeil: {e}", flush=True)
         return None
 
+# --- NY DEL START ---
+forrige_lager = None # Denne må stå her for å huske forrige måling
+# --- NY DEL SLUTT ---
+
 # Hovedløkke
 while True:
     nytt_lager = hent_lager()
     if nytt_lager is not None:
+        # --- NY LOGIKK FOR SALG ---
+        salg = 0
+        if forrige_lager is not None and nytt_lager < forrige_lager:
+            salg = forrige_lager - nytt_lager
+        
         try:
-            # Sender data til Supabase
-            supabase.table('saphe_logg').insert({"lager": nytt_lager, "solgt_siden_sist": 0}).execute()
-            print(f"Suksess! Lagret {nytt_lager} stk.", flush=True)
+            # Vi sender nå variabelen 'salg' til databasen
+            supabase.table('saphe_logg').insert({
+                "lager": nytt_lager, 
+                "solgt_siden_sist": salg
+            }).execute()
+            
+            print(f"Suksess! Lagret {nytt_lager} stk. (Solgt siden sist: {salg})", flush=True)
+            
+            # Oppdater forrige_lager til det vi nettopp hentet, klar for neste runde
+            forrige_lager = nytt_lager
+            
         except Exception as e:
             print(f"Supabase feil: {e}", flush=True)
     
-    time.sleep(120) # Venter 2 minutter før neste sjekk
+    time.sleep(120)
