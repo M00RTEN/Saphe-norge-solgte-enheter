@@ -1,28 +1,43 @@
 import time
 import os
+import sys
 from threading import Thread
 from http.server import SimpleHTTPRequestHandler
 from socketserver import TCPServer
-# ... dine andre imports (requests, supabase, osv.)
+# ... dine eksisterende imports her (requests, supabase, bs4 osv.) ...
 
-# 1. LUR RENDER: Start en bitteliten webserver i bakgrunnen
+# 1. Tving Render til å lyse grønt (Web Service trikset)
 def run_dummy_server():
-    port = int(os.environ.get("PORT", 10000))
-    server = TCPServer(("0.0.0.0", port), SimpleHTTPRequestHandler)
-    print(f"Dummy-server kjører på port {port}")
-    server.serve_forever()
+    try:
+        port = int(os.environ.get("PORT", 10000))
+        server = TCPServer(("0.0.0.0", port), SimpleHTTPRequestHandler)
+        print(f"Dummy-server startet på port {port}", flush=True)
+        server.serve_forever()
+    except Exception as e:
+        print(f"Dummy-server feilet: {e}", flush=True)
 
-# Start dummy-serveren i en egen tråd så Render blir fornøyd
+# Start serveren i bakgrunnen umiddelbart
 Thread(target=run_dummy_server, daemon=True).start()
 
-# 2. DIN EKTE SKRAPER-LOOP
-print("Starter Saphe-skraperen...")
+# 2. Selve skraper-loopen din
+print("Starter Saphe-skraperen...", flush=True)
+
 while True:
     try:
-        # ... Her legger du inn den ekte skraper-koden din som dytter tall til Supabase ...
-        print("Sjekker lagerstatus og oppdaterer Supabase...")
+        print("Henter data fra kilden...", flush=True)
+        
+        # --- HER SKAL DIN EGEN SKRAPE-LOGIKK LIGGE ---
+        # Pass på at variablene dine dytter RIKTIG tall inn til Supabase.
+        # F.eks. hvis du har: lager_tall = sjekk_saphe()
+        
+        print("Prøver å sende tall til Supabase...", flush=True)
+        
+        # --- DIN SUPABASE INSERT KODE HER ---
+        # f.eks: supabase.table('lager').insert({...}).execute()
+        
+        print("Suksess! Data sendt.", flush=True)
         
     except Exception as e:
-        print(f"Feil i loopen: {e}")
+        print(f"!!! FEIL I LOOPEN: {e}", flush=True)
         
-    time.sleep(30) # Vent 30 sekunder før neste sjekk
+    time.sleep(30)
