@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Saphe Lager & Salgstracker</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; background: #f4f4f9; text-align: center; }
+        .box { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h1 { color: #333; }
+        .tall { font-size: 2.5rem; font-weight: bold; color: #2ecc71; margin: 10px 0; }
+        .info { color: #666; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+
+    <h1>Saphe T Starter Pack</h1>
+    
+    <div class="box">
+        <h2>Siste registrerte salg</h2>
+        <div class="tall" id="salg">Laster...</div>
+        <p class="info" id="oppdatert"></p>
+    </div>
+
+    <div class="box">
+        <h2>Nåværende totalt på lager i Norge</h2>
+        <div class="tall" id="lager" style="color: #3498db;">Laster...</div>
+    </div>
+
+    <script>
+        fetch('data.json')
+            .then(response => response.json())
+            .then(data => {
+                if(data.length > 0) {
+                    const sisteLogg = data[data.length - 1];
+                    
+                    // Summer totalt antall solgt i hele historikken (eller filtrer for siste døgn etter hvert)
+                    let totaltSolgt = data.reduce((sum, item) => sum + item.solgt_siden_sist, 0);
+
+                    document.getElementById('salg').innerText = totaltSolgt + " stk.";
+                    document.getElementById('lager').innerText = sisteLogg.lager + " stk.";
+                    document.getElementById('oppdatert').innerText = "Sist sjekket: " + sisteLogg.tidspunkt;
+                } else {
+                    document.getElementById('salg').innerText = "Venter på første kjøring...";
+                }
+            })
+            .catch(err => {
+                document.getElementById('salg').innerText = "Ingen data ennå";
+                document.getElementById('lager').innerText = "-";
+            });
+    </script>
+</body>
+</html>
