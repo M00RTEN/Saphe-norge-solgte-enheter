@@ -3,51 +3,146 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Saphe Lager & Salgstracker</title>
+    <title>Saphe Tracker (Live hvert 30. sek)</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; background: #f4f4f9; text-align: center; }
-        .box { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        h1 { color: #333; }
-        .tall { font-size: 2.5rem; font-weight: bold; color: #2ecc71; margin: 10px 0; }
-        .info { color: #666; font-size: 0.9rem; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .lager-tall {
+            font-size: 4rem;
+            font-weight: bold;
+            color: #2ecc71;
+            margin: 10px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #edf2f7;
+        }
+        th {
+            background-color: #edf2f7;
+            font-weight: 600;
+        }
+        tr:hover {
+            background-color: #f8fafc;
+        }
+        .salg-tag {
+            background-color: #e74c3c;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
 
-    <h1>Saphe T Starter Pack</h1>
-    
-    <div class="box">
-        <h2>Siste registrerte salg</h2>
-        <div class="tall" id="salg">Laster...</div>
-        <p class="info" id="oppdatert"></p>
+    <div class="card">
+        <h2>Live Lagerstatus (Norge totalt)</h2>
+        <div id="live-lager" class="lager-tall">Laster...</div>
+        <p style="color: #666; font-size: 0.9rem;">Oppdateres automatisk hvert 30. sekund i bakgrunnen</p>
     </div>
 
-    <div class="box">
-        <h2>Nåværende totalt på lager i Norge</h2>
-        <div class="tall" id="lager" style="color: #3498db;">Laster...</div>
-    </div>
+    <h3>Historikk (Siste 100 målinger)</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Tidspunkt</th>
+                <th>Lagerbeholdning</th>
+                <th>Endring / Salg</th>
+            </tr>
+        </thead>
+        <tbody id="historikk-tabell">
+            <tr>
+                <td colspan="3" style="text-align: center; color: #666;">Henter historikk fra skyen...</td>
+            </tr>
+        </tbody>
+    </table>
 
     <script>
-        fetch('data.json')
-            .then(response => response.json())
-            .then(data => {
-                if(data.length > 0) {
-                    const sisteLogg = data[data.length - 1];
-                    
-                    // Summer totalt antall solgt i hele historikken (eller filtrer for siste døgn etter hvert)
-                    let totaltSolgt = data.reduce((sum, item) => sum + item.solgt_siden_sist, 0);
+        // Dine ferdig utfylte Supabase-detaljer
+        const SUPABASE_URL = "https://czepeuyljlnpsrtqyqwe.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_mVzloJQX4y2OrJ_67po5Mg_Q2iXlW1b";
 
-                    document.getElementById('salg').innerText = totaltSolgt + " stk.";
-                    document.getElementById('lager').innerText = sisteLogg.lager + " stk.";
-                    document.getElementById('oppdatert').innerText = "Sist sjekket: " + sisteLogg.tidspunkt;
+        async function hentDataFraSupabase() {
+            try {
+                // Vi henter de siste 100 linjene sortert etter ID (nyeste først)
+                const url = `${SUPABASE_URL}/rest/v1/saphe_logg?select=tidspunkt,lager,solgt_siden_sist&order=id.desc&limit=100`;
+                
+                const response = await fetch(url, {
+                    method: "GET",
+                    headers: {
+                        "apikey": SUPABASE_KEY,
+                        "Authorization": `Bearer ${SUPABASE_KEY}`,
+                        "Content-Type": "application/json"
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data && data.length > 0) {
+                    // 1. Oppdater det store tallet øverst (nyeste måling)
+                    document.getElementById("live-lager").innerText = data[0].lager + " stk.";
+
+                    // 2. Bygg tabellen
+                    let tabellHtml = "";
+                    data.forEach(rad => {
+                        // Formater tidsstempelet til lesbar norsk tid
+                        const dato = new Date(rad.tidspunkt);
+                        const tidStreng = dato.toLocaleString("no-NO", { hour12: false }).replace(",", "");
+
+                        let salgTekst = "0";
+                        if (rad.solgt_siden_sist > 0) {
+                            salgTekst = `<span class="salg-tag">-${rad.solgt_siden_sist} solgt</span>`;
+                        }
+
+                        tabellHtml += `
+                            <tr>
+                                <td>${tidStreng}</td>
+                                <td>${rad.lager} stk.</td>
+                                <td>${salgTekst}</td>
+                            </tr>
+                        `;
+                    });
+
+                    document.getElementById("historikk-tabell").innerHTML = tabellHtml;
                 } else {
-                    document.getElementById('salg').innerText = "Venter på første kjøring...";
+                    document.getElementById("live-lager").innerText = "0 stk.";
+                    document.getElementById("historikk-tabell").innerHTML = `<tr><td colspan="3" style="text-align: center; color: #666;">Databasen er tom foreløpig. Venter på Render...</td></tr>`;
                 }
-            })
-            .catch(err => {
-                document.getElementById('salg').innerText = "Ingen data ennå";
-                document.getElementById('lager').innerText = "-";
-            });
+            } catch (feil) {
+                console.error("Kunne ikke hente data:", feil);
+                document.getElementById("live-lager").innerText = "Feil";
+            }
+        }
+
+        // Hent data med en gang siden åpnes
+        hentDataFraSupabase();
+
+        // Sjekk etter nye tall i databasen hvert 30. sekund mens brukeren har siden åpen
+        setInterval(hentDataFraSupabase, 30000);
     </script>
 </body>
 </html>
