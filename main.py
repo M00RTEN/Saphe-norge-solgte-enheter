@@ -1,73 +1,52 @@
 import time
 import os
-import sys
 import requests
-from bs4 import BeautifulSoup
 from threading import Thread
 from http.server import SimpleHTTPRequestHandler
 from socketserver import TCPServer
 from supabase import create_client, Client
 
-# =====================================================================
-# 1. Tving Render til å lyse grønt (Web Service trikset)
-# =====================================================================
+# 1. Dummy-server (Holder Render "Live")
 def run_dummy_server():
-    try:
-        port = int(os.environ.get("PORT", 10000))
-        server = TCPServer(("0.0.0.0", port), SimpleHTTPRequestHandler)
-        print(f"Dummy-server startet på port {port}", flush=True)
-        server.serve_forever()
-    except Exception as e:
-        print(f"Dummy-server feilet: {e}", flush=True)
+    port = int(os.environ.get("PORT", 10000))
+    server = TCPServer(("0.0.0.0", port), SimpleHTTPRequestHandler)
+    server.serve_forever()
 
-# Start serveren i bakgrunnen umiddelbart
 Thread(target=run_dummy_server, daemon=True).start()
 
-# =====================================================================
-# 2. Konfigurasjon av Supabase
-# =====================================================================
-# Bytt ut med dine egne detaljer hvis du ikke bruker miljøvariabler (os.environ)
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "DIN_SUPABASE_URL_HER")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "DIN_SUPABASE_KEY_HER")
+# 2. Supabase-oppsett
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-try:
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-    print("Koblet til Supabase!", flush=True)
-except Exception as e:
-    print(f"Kunne ikke koble til Supabase: {e}", flush=True)
-    sys.exit(1)
+# 3. Skrape-konfigurasjon
+API_URL = "https://www.thansen.no/ajax/functionGetInstockStatus.asp?pn=1545773"
+headers = {"User-Agent": "Mozilla/5.0", "X-Requested-With": "XMLHttpRequest"}
 
-# =====================================================================
-# 3. Selve skraper-loopen
-# =====================================================================
-print("Starter Saphe-skraperen...", flush=True)
-
-while True:
+def hent_lager_fra_json():
     try:
-        print("Henter data fra kilden...", flush=True)
-        
-        # --- DIN EGEN SKRAPE-LOGIKK HER ---
-        # Eksempel på hvordan du henter verdien din:
-        # url = "https://www.saphe.no/..."
-        # response = requests.get(url)
-        # soup = BeautifulSoup(response.text, 'html.parser')
-        # lager_tall = int(soup.find(id="lager-status").text)
-        
-        lager_tall = 0  # <--- BYTT UT DENNE med variabelen som faktisk har tallet ditt!
-        
-        # Print ut verdien i loggen så vi ser hva den faktisk fant:
-        print(f"--> Skraperen fant denne verdien: {lager_tall}", flush=True)
-        
-        print("Prøver å sende tall til Supabase...", flush=True)
-        
-        # --- DIN SUPABASE INSERT-KODE HER ---
-        # data = {"lagerbeholdning": lager_tall}
-        # supabase.table('DIN_TABELL_NAVN').insert(data).execute()
-        
-        print("Suksess! Data sendt.", flush=True)
-        
+        res = requests.get(API_URL, headers=headers, timeout=15)
+        data = res.json()
+        return sum(int(butikk.get("antal", 0)) for butikk in data)
     except Exception as e:
-        print(f"!!! FEIL I LOOPEN: {e}", flush=True)
+        print(f"Feil ved henting: {e}", flush=True)
+        return None
+
+# 4. Hoved-loop
+print("Starter skraper...", flush=True)
+while True:
+    nytt_lager = hent_lager_fra_json()
+    
+    if nytt_lager is not None:
+        print(f"--> Skraperen fant: {nytt_lager} stk", flush=True)
         
-    # Vent 30 sekunder før neste sjekk
+        # Send til Supabase (Bytt ut 'lager_tabell' med navnet på din tabell i Supabase)
+        try:
+            supabase.table('lager_tabell').insert({
+                "lager": nytt_lager
+            }).execute()
+            print("Suksess! Data sendt til Supabase.", flush=True)
+        except Exception as e:
+            print(f"!!! Feil ved sending til Supabase: {e}", flush=True)
+    
     time.sleep(30)
