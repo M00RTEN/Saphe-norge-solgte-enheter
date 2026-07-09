@@ -2,6 +2,7 @@ import time
 import os
 import requests
 import random  # Lagt til for tilfeldig intervall
+from datetime import datetime, timedelta  # Lagt til for 31 dager sletting
 from threading import Thread
 from http.server import SimpleHTTPRequestHandler
 from socketserver import TCPServer
@@ -41,19 +42,37 @@ def hent_lager():
         print(f"Skrapefeil: {e}", flush=True)
         return None
 
-# Hukommelse for forrige lager
-forrige_lager = None
+# Henter den siste ekte lagerbeholdningen direkte fra Supabase for å unngå tap av data ved restarter
+def hent_siste_gyldige_lager():
+    try:
+        response = (
+            supabase.table("saphe_logg")
+            .select("lager")
+            .gt("lager", 0)  # Sikrer at vi ikke henter rader der Thansen har hikket (0)
+            .order("tidspunkt", descending=True)
+            .limit(1)
+            .execute()
+        )
+        if response.data:
+            return response.data[0]["lager"]
+    except Exception as e:
+        print(f"Kunne ikke hente siste lager fra database: {e}", flush=True)
+    return None
 
 # Hovedløkke
 print("Starter hovedløkke...", flush=True)
 while True:
     nytt_lager = hent_lager()
     
-    if nytt_lager is not None:
+    # Lagt til en ekstra sjekk så vi skipper runden om Thansen gir oss 0 eller ingenting ved en feil
+    if nytt_lager is not None and nytt_lager > 0:
         salg = 0
-        # Hvis vi har et forrige lager og det nye er mindre, har vi salg
-        if forrige_lager is not None and nytt_lager < forrige_lager:
-            salg = forrige_lager - nytt_lager
+        
+        # Henter historikk fra databasen i stedet for den sårbare 'forrige_lager'-variabelen
+        forrige_lager_db = hent_siste_gyldige_lager()
+        
+        if forrige_lager_db is not None and nytt_lager < forrige_lager_db:
+            salg = forrige_lager_db - nytt_lager
         
         try:
             # Send til Supabase
@@ -64,11 +83,18 @@ while True:
             
             print(f"Suksess! Lagret {nytt_lager} stk. (Solgt siden sist: {salg})", flush=True)
             
-            # Oppdater hukommelsen KUN hvis vi fikk lagret
-            forrige_lager = nytt_lager
-            
+            # Automatisk 31-dagers renhold
+            try:
+                tidsgrense = (datetime.utcnow() - timedelta(days=31)).isoformat()
+                supabase.table("saphe_logg").delete().lt("tidspunkt", tidsgrense).execute()
+            except Exception as e:
+                print(f"Kunne ikke slette gamle data: {e}", flush=True)
+                
         except Exception as e:
             print(f"Supabase feil: {e}", flush=True)
+            
+    elif nytt_lager == 0:
+        print("Thansen rapporterer 0 i lager (feil/api-timeout), hopper over denne runden...", flush=True)
     else:
         print("Kunne ikke hente lager, prøver igjen snart...", flush=True)
     
