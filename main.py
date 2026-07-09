@@ -49,7 +49,7 @@ def hent_siste_gyldige_lager():
             supabase.table("saphe_logg")
             .select("lager")
             .gt("lager", 0)  # Sikrer at vi ikke henter rader der Thansen har hikket (0)
-            .order("tidspunkt", descend=True)  # Riktig argument for Supabase Python-pakken
+            .order("tidspunkt", desc=True)  # Endret til 'desc=True' som fungerer i nyeste versjoner
             .limit(1)
             .execute()
         )
@@ -83,7 +83,7 @@ while True:
             
             print(f"Suksess! Lagret {nytt_lager} stk. (Solgt siden sist: {salg})", flush=True)
             
-            # Automatisk 31-dagers renhold (bruker moderne datetime-objekter uten advarsler)
+            # Automatisk 31-dagers renhold
             try:
                 tidsgrense = (datetime.now(UTC) - timedelta(days=31)).isoformat()
                 supabase.table("saphe_logg").delete().lt("tidspunkt", tidsgrense).execute()
