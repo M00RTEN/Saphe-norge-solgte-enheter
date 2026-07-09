@@ -44,7 +44,7 @@ def hent_siste_gyldige_lager():
 
 def hent_lager():
     try:
-        # Lagt til timeout=10 for å unngå at skriptet henger hvis Thansen is nede
+        # Lagt til timeout=10 for å unngå at skriptet henger hvis Thansen er nede
         res = requests.get(API_URL, headers=headers, timeout=10)
         if res.status_code != 200:
             return None
@@ -67,6 +67,7 @@ while True:
     # Sjekk så vi skipper runden om Thansen gir oss 0 eller ingenting ved en feil
     if nytt_lager is not None and nytt_lager > 0:
         salg = 0
+        paafyll = 0
         
         # Henter historikk (siste lagret rad)
         forrige_lager_db = hent_siste_gyldige_lager()
@@ -76,6 +77,7 @@ while True:
                 # REELT SALG
                 salg = forrige_lager_db - nytt_lager
                 print(f"SALG OPPDAGET! Solgt siden sist: {salg}", flush=True)
+                paafyll = 0
             elif nytt_lager > forrige_lager_db:
                 # REELT PÅFYLL (Lageret har økt)
                 paafyll = nytt_lager - forrige_lager_db
@@ -84,15 +86,18 @@ while True:
             else:
                 # Ingen endring i lageret
                 salg = 0
+                paafyll = 0
         else:
             # Hvis databasen er helt tom (første kjøring)
             salg = 0
+            paafyll = 0
         
         try:
-            # Send til Supabase
+            # Send til Supabase med både salg og påfyll inkludert
             supabase.table('saphe_logg').insert({
                 "lager": nytt_lager, 
-                "solgt_siden_sist": salg
+                "solgt_siden_sist": salg,
+                "paafyll": paafyll
             }).execute()
             
             print(f"Suksess! Lagret {nytt_lager} stk. til databasen.", flush=True)
