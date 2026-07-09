@@ -25,14 +25,14 @@ headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
 }
 
-# Henter det LAVESTE registrerte lagertallet i databasen for å unngå at lager-oppjusteringer sletter salg
+# Henter den siste reelle lagret-verdien uansett tidsrom for å bruke som sammenligningsgrunnlag
 def hent_siste_gyldige_lager():
     try:
         response = (
             supabase.table("saphe_logg")
             .select("lager")
             .gt("lager", 0)  # Sikrer at vi ikke henter rader der Thansen har hikket (0)
-            .order("lager", desc=False)  # Sorterer med det LAVESTE lageret først
+            .order("tidspunkt", desc=True)  # Sorterer med nyeste tidsstempel først
             .limit(1)
             .execute()
         )
@@ -68,11 +68,25 @@ while True:
     if nytt_lager is not None and nytt_lager > 0:
         salg = 0
         
-        # Henter historikk basert på laveste lagertall
+        # Henter historikk (siste lagret rad)
         forrige_lager_db = hent_siste_gyldige_lager()
         
-        if forrige_lager_db is not None and nytt_lager < forrige_lager_db:
-            salg = forrige_lager_db - nytt_lager
+        if forrige_lager_db is not None:
+            if nytt_lager < forrige_lager_db:
+                # REELT SALG
+                salg = forrige_lager_db - nytt_lager
+                print(f"SALG OPPDAGET! Solgt siden sist: {salg}", flush=True)
+            elif nytt_lager > forrige_lager_db:
+                # REELT PÅFYLL (Lageret har økt)
+                paafyll = nytt_lager - forrige_lager_db
+                print(f"LAGERPÅFYLL OPPDAGET! Økning på: +{paafyll} stk. Nytt utgangspunkt: {nytt_lager}", flush=True)
+                salg = 0  # Ingen salg på denne spesifikke raden
+            else:
+                # Ingen endring i lageret
+                salg = 0
+        else:
+            # Hvis databasen er helt tom (første kjøring)
+            salg = 0
         
         try:
             # Send til Supabase
@@ -81,7 +95,7 @@ while True:
                 "solgt_siden_sist": salg
             }).execute()
             
-            print(f"Suksess! Lagret {nytt_lager} stk. (Solgt siden sist: {salg})", flush=True)
+            print(f"Suksess! Lagret {nytt_lager} stk. til databasen.", flush=True)
             
             # Automatisk 31-dagers renhold
             try:
