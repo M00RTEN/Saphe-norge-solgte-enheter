@@ -41,37 +41,31 @@
         const SUPABASE_KEY = "sb_publishable_mVzloJQX4y2OrJ_67po5Mg_Q2iXlW1b";
 
         async function oppdaterDashbord() {
-            // 1. Hent den ALLER ELDSTE raden i hele databasen for å ha et fast, urokkelig startpunkt
-            const startUrl = `${SUPABASE_URL}/rest/v1/saphe_logg?select=lager&order=id.asc&limit=1`;
-            
-            // 2. Hent de 100 nyeste radene til tabellen og påfyll-beregning
+            // 1. Hent de 100 nyeste radene til tabellen
             const url = `${SUPABASE_URL}/rest/v1/saphe_logg?select=tidspunkt,lager,solgt_siden_sist,paafyll&order=id.desc&limit=100`;
             
+            // 2. Hent ALLE rader fra databasen der solgt_siden_sist er større enn 0 for urokkelig summasjon
+            const salgUrl = `${SUPABASE_URL}/rest/v1/saphe_logg?select=solgt_siden_sist&solgt_siden_sist=gt.0`;
+
             try {
-                const [startRes, dataRes] = await Promise.all([
-                    fetch(startUrl, { headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` } }),
-                    fetch(url, { headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` } })
+                const [dataRes, salgRes] = await Promise.all([
+                    fetch(url, { headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` } }),
+                    fetch(salgUrl, { headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` } })
                 ]);
 
-                const startData = await startRes.json();
                 const data = await dataRes.json();
+                const alleSalg = await salgRes.json();
 
-                if (data && data.length > 0 && startData && startData.length > 0) {
-                    // Siste live lager (nyeste rad)
+                if (data && data.length > 0) {
+                    // Siste live lager
                     const sisteLager = data[0].lager;
                     document.getElementById("live-lager").innerText = sisteLager + " stk.";
 
-                    // Det faste startpunktet fra databasen som ALDRI flytter seg ut av listen
-                    const eldsteLager = startData[0].lager;
+                    // Regn ut totalt salg basert på absolutt alle registrerte salgslinjer i hele tabellen
+                    const totaltSolgt = alleSalg.reduce((sum, item) => sum + (item.solgt_siden_sist || 0), 0);
+                    document.getElementById("live-salg").innerText = totaltSolgt;
 
-                    // Regn ut totalt påfyll fra historikken
-                    const totaltPaafyll = data.reduce((sum, item) => sum + (item.paafyll || 0), 0);
-
-                    // Skuddsikker beregning som holder seg stabil
-                    const totaltSolgt = (eldsteLager + totaltPaafyll) - sisteLager;
-                    document.getElementById("live-salg").innerText = totaltSolgt > 0 ? totaltSolgt : 0;
-
-                    // 5. Bygg historikk-tabell med påfyll-tags ved siden av lagertallet
+                    // Bygg historikk-tabell
                     let html = "";
                     data.forEach(r => {
                         const paafyllTekst = r.paafyll > 0 ? `<span class="paafyll-badge">(+${r.paafyll})</span>` : "";
