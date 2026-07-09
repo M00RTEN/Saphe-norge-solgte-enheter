@@ -41,40 +41,51 @@
         const SUPABASE_KEY = "sb_publishable_mVzloJQX4y2OrJ_67po5Mg_Q2iXlW1b";
 
         async function oppdaterDashbord() {
-            // Henter ut alle nødvendige kolonner fra Supabase, inkludert paafyll
+            // 1. Hent den ALLER ELDSTE raden i hele databasen for å ha et fast, urokkelig startpunkt
+            const startUrl = `${SUPABASE_URL}/rest/v1/saphe_logg?select=lager&order=id.asc&limit=1`;
+            
+            // 2. Hent de 100 nyeste radene til tabellen og påfyll-beregning
             const url = `${SUPABASE_URL}/rest/v1/saphe_logg?select=tidspunkt,lager,solgt_siden_sist,paafyll&order=id.desc&limit=100`;
-            const response = await fetch(url, { 
-                headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` }
-            });
-            const data = await response.json();
+            
+            try {
+                const [startRes, dataRes] = await Promise.all([
+                    fetch(startUrl, { headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` } }),
+                    fetch(url, { headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` } })
+                ]);
 
-            if (data && data.length > 0) {
-                // 1. Vis siste live lager (ligger øverst i listen)
-                const sisteLager = data[0].lager;
-                document.getElementById("live-lager").innerText = sisteLager + " stk.";
+                const startData = await startRes.json();
+                const data = await dataRes.json();
 
-                // 2. Finn eldste lager i denne sesjonen (ligger helt nederst i listen)
-                const eldsteLager = data[data.length - 1].lager;
+                if (data && data.length > 0 && startData && startData.length > 0) {
+                    // Siste live lager (nyeste rad)
+                    const sisteLager = data[0].lager;
+                    document.getElementById("live-lager").innerText = sisteLager + " stk.";
 
-                // 3. Regn ut totalt påfyll fra de hentede radene
-                const totaltPaafyll = data.reduce((sum, item) => sum + (item.paafyll || 0), 0);
+                    // Det faste startpunktet fra databasen som ALDRI flytter seg ut av listen
+                    const eldsteLager = startData[0].lager;
 
-                // 4. Skuddsikker beregning av totalt salg: (Eldste lager + Påfyll) - Siste live lager
-                const totaltSolgt = (eldsteLager + totaltPaafyll) - sisteLager;
-                document.getElementById("live-salg").innerText = totaltSolgt > 0 ? totaltSolgt : 0;
+                    // Regn ut totalt påfyll fra historikken
+                    const totaltPaafyll = data.reduce((sum, item) => sum + (item.paafyll || 0), 0);
 
-                // 5. Bygg historikk-tabell med påfyll-tags ved siden av lagertallet
-                let html = "";
-                data.forEach(r => {
-                    const paafyllTekst = r.paafyll > 0 ? `<span class="paafyll-badge">(+${r.paafyll})</span>` : "";
+                    // Skuddsikker beregning som holder seg stabil
+                    const totaltSolgt = (eldsteLager + totaltPaafyll) - sisteLager;
+                    document.getElementById("live-salg").innerText = totaltSolgt > 0 ? totaltSolgt : 0;
 
-                    html += `<tr>
-                        <td>${new Date(r.tidspunkt).toLocaleTimeString()}</td>
-                        <td>${r.lager}${paafyllTekst}</td>
-                        <td>${r.solgt_siden_sist > 0 ? '+' + r.solgt_siden_sist : '0'}</td>
-                    </tr>`;
-                });
-                document.getElementById("historikk-tabell").innerHTML = html;
+                    // 5. Bygg historikk-tabell med påfyll-tags ved siden av lagertallet
+                    let html = "";
+                    data.forEach(r => {
+                        const paafyllTekst = r.paafyll > 0 ? `<span class="paafyll-badge">(+${r.paafyll})</span>` : "";
+
+                        html += `<tr>
+                            <td>${new Date(r.tidspunkt).toLocaleTimeString()}</td>
+                            <td>${r.lager}${paafyllTekst}</td>
+                            <td>${r.solgt_siden_sist > 0 ? '+' + r.solgt_siden_sist : '0'}</td>
+                        </tr>`;
+                    });
+                    document.getElementById("historikk-tabell").innerHTML = html;
+                }
+            } catch (feil) {
+                console.error("Feil ved henting av data:", feil);
             }
         }
         oppdaterDashbord();
