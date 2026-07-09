@@ -2,7 +2,7 @@ import time
 import os
 import requests
 import random  # Lagt til for tilfeldig intervall
-from datetime import datetime, timedelta  # Lagt til for 31 dager sletting
+from datetime import datetime, timedelta, UTC  # Lagt til UTC for moderne tidsberegning
 from threading import Thread
 from http.server import SimpleHTTPRequestHandler
 from socketserver import TCPServer
@@ -27,7 +27,7 @@ headers = {
 
 def hent_lager():
     try:
-        # Lagt til timeout=10 for å unngå at skriptet henger hvis Thansen er nede
+        # Lagt til timeout=10 for å unngå at skriptet henger hvis Thansen is nede
         res = requests.get(API_URL, headers=headers, timeout=10)
         if res.status_code != 200:
             return None
@@ -49,7 +49,7 @@ def hent_siste_gyldige_lager():
             supabase.table("saphe_logg")
             .select("lager")
             .gt("lager", 0)  # Sikrer at vi ikke henter rader der Thansen har hikket (0)
-            .order("tidspunkt", descending=True)
+            .order("tidspunkt", descend=True)  # Riktig argument for Supabase Python-pakken
             .limit(1)
             .execute()
         )
@@ -64,7 +64,7 @@ print("Starter hovedløkke...", flush=True)
 while True:
     nytt_lager = hent_lager()
     
-    # Lagt til en ekstra sjekk så vi skipper runden om Thansen gir oss 0 eller ingenting ved en feil
+    # Sjekk så vi skipper runden om Thansen gir oss 0 eller ingenting ved en feil
     if nytt_lager is not None and nytt_lager > 0:
         salg = 0
         
@@ -83,9 +83,9 @@ while True:
             
             print(f"Suksess! Lagret {nytt_lager} stk. (Solgt siden sist: {salg})", flush=True)
             
-            # Automatisk 31-dagers renhold
+            # Automatisk 31-dagers renhold (bruker moderne datetime-objekter uten advarsler)
             try:
-                tidsgrense = (datetime.utcnow() - timedelta(days=31)).isoformat()
+                tidsgrense = (datetime.now(UTC) - timedelta(days=31)).isoformat()
                 supabase.table("saphe_logg").delete().lt("tidspunkt", tidsgrense).execute()
             except Exception as e:
                 print(f"Kunne ikke slette gamle data: {e}", flush=True)
@@ -98,7 +98,7 @@ while True:
     else:
         print("Kunne ikke hente lager, prøver igjen snart...", flush=True)
     
-    # Endret fra fast 30 sekunder til tilfeldig mellom 1 og 2 minutter (60-120 sekunder)
+    # Tilfeldig pause mellom 1 og 2 minutter (60-120 sekunder)
     pause = random.randint(60, 120)
     print(f"Venter i {pause} sekunder før neste sjekk...", flush=True)
     time.sleep(pause)
