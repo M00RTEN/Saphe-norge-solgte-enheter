@@ -1,6 +1,7 @@
 import time
 import os
 import requests
+import random  # Lagt til for tilfeldig intervall
 from threading import Thread
 from http.server import SimpleHTTPRequestHandler
 from socketserver import TCPServer
@@ -69,7 +70,9 @@ while True:
         except Exception as e:
             print(f"Supabase feil: {e}", flush=True)
     else:
-        print("Kunne ikke hente lager, prøver igjen om 30 sek...", flush=True)
+        print("Kunne ikke hente lager, prøver igjen snart...", flush=True)
     
-    # Kortere ventetid for å fange opp salg raskere
-    time.sleep(30)
+    # Endret fra fast 30 sekunder til tilfeldig mellom 1 og 2 minutter (60-120 sekunder)
+    pause = random.randint(60, 120)
+    print(f"Venter i {pause} sekunder før neste sjekk...", flush=True)
+    time.sleep(pause)
