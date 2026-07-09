@@ -94,4 +94,11 @@ while True:
             print(f"Supabase feil: {e}", flush=True)
             
     elif nytt_lager == 0:
-        print("Thansen rapporterer 0 i lager (fe
+        print("Thansen rapporterer 0 i lager (feil/api-timeout), hopper over denne runden...", flush=True)
+    else:
+        print("Kunne ikke hente lager, prøver igjen snart...", flush=True)
+    
+    # Tilfeldig pause mellom 1 og 2 minutter (60-120 sekunder)
+    pause = random.randint(60, 120)
+    print(f"Venter i {pause} sekunder før neste sjekk...", flush=True)
+    time.sleep(pause)
