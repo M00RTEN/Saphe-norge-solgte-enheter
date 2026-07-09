@@ -12,6 +12,7 @@
         .salg-tall { font-size: 3rem; font-weight: bold; color: #e74c3c; }
         table { width: 100%; border-collapse: collapse; background: white; margin-top: 20px; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        .paafyll-badge { color: #2ecc71; font-size: 0.85em; font-weight: bold; margin-left: 6px; }
     </style>
 </head>
 <body>
@@ -40,7 +41,8 @@
         const SUPABASE_KEY = "sb_publishable_mVzloJQX4y2OrJ_67po5Mg_Q2iXlW1b";
 
         async function oppdaterDashbord() {
-            const url = `${SUPABASE_URL}/rest/v1/saphe_logg?select=tidspunkt,lager,solgt_siden_sist&order=id.desc&limit=100`;
+            // Henter også ut den nye 'paafyll'-kolonnen fra Supabase
+            const url = `${SUPABASE_URL}/rest/v1/saphe_logg?select=tidspunkt,lager,solgt_siden_sist,paafyll&order=id.desc&limit=100`;
             const response = await fetch(url, { 
                 headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` }
             });
@@ -57,9 +59,12 @@
                 // 3. Bygg tabell
                 let html = "";
                 data.forEach(r => {
+                    // Hvis raden inneholder påfyll, lager vi en diskret grønn tekst-tag
+                    const paafyllTekst = r.paafyll > 0 ? `<span class="paafyll-badge">(+${r.paafyll})</span>` : "";
+
                     html += `<tr>
                         <td>${new Date(r.tidspunkt).toLocaleTimeString()}</td>
-                        <td>${r.lager}</td>
+                        <td>${r.lager}${paafyllTekst}</td>
                         <td>${r.solgt_siden_sist > 0 ? '+' + r.solgt_siden_sist : '0'}</td>
                     </tr>`;
                 });
